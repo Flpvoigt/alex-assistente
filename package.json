@@ -9,9 +9,12 @@
   },
   "scripts": {
     "dev": "node --watch src/server.mjs",
-    "start": "node src/server.mjs",
+    "start": "node scripts/start.mjs",
+    "start:server": "node src/server.mjs",
+    "voice": "uv run --project voice --python 3.12 python voice/server.py",
+    "voice:setup": "sh scripts/setup-kokoro.sh",
     "test": "node --test",
-    "check": "node --check src/config.mjs && node --check src/env.mjs && node --check src/server.mjs && node --check public/app.js && npm test"
+    "check": "node --check src/config.mjs && node --check src/env.mjs && node --check src/server.mjs && node --check scripts/start.mjs && node --check public/app.js && node --check public/voice.mjs && python3 -c 'compile(open(\"voice/server.py\").read(), \"voice/server.py\", \"exec\")' && npm test"
   }
 }
 

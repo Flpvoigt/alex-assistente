@@ -1,7 +1,8 @@
 {
   "recommendations": [
     "dbaeumer.vscode-eslint",
-    "editorconfig.editorconfig"
+    "editorconfig.editorconfig",
+    "ms-python.python"
   ]
 }
 

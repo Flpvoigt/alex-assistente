@@ -1,25 +1,45 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createSessionConfig } from "../src/config.mjs";
+import { createGroqConfig, createVoiceConfig, sanitizeHistory } from "../src/config.mjs";
 
-test("usa configuracao padrao segura para voz", () => {
-  const config = createSessionConfig({});
+test("usa modelos Groq de producao por padrao", () => {
+  const config = createGroqConfig({});
 
-  assert.equal(config.type, "realtime");
-  assert.equal(config.model, "gpt-realtime-2.1");
-  assert.equal(config.audio.output.voice, "marin");
-  assert.match(config.instructions, /Alex/);
-  assert.match(config.instructions, /portugues do Brasil/);
+  assert.equal(config.chatModel, "openai/gpt-oss-120b");
+  assert.equal(config.sttModel, "whisper-large-v3-turbo");
 });
 
-test("aceita modelo e voz configurados pelo ambiente", () => {
-  const config = createSessionConfig({
-    OPENAI_REALTIME_MODEL: "modelo-de-teste",
-    OPENAI_REALTIME_VOICE: "voz-de-teste"
+test("aceita modelos configurados pelo ambiente", () => {
+  const config = createGroqConfig({
+    GROQ_CHAT_MODEL: "chat-de-teste",
+    GROQ_STT_MODEL: "stt-de-teste"
   });
 
-  assert.equal(config.model, "modelo-de-teste");
-  assert.equal(config.audio.output.voice, "voz-de-teste");
+  assert.equal(config.chatModel, "chat-de-teste");
+  assert.equal(config.sttModel, "stt-de-teste");
+});
+
+test("limita e limpa o historico enviado ao modelo", () => {
+  const history = Array.from({ length: 14 }, (_, index) => ({
+    role: index % 2 ? "assistant" : "user",
+    content: `mensagem-${index}`
+  }));
+  history.push({ role: "system", content: "ignorar" });
+
+  const sanitized = sanitizeHistory(history);
+
+  assert.equal(sanitized.length, 12);
+  assert.equal(sanitized[0].content, "mensagem-2");
+  assert.equal(sanitized.at(-1).content, "mensagem-13");
+});
+
+test("configura a voz neural masculina local com velocidade segura", () => {
+  const defaults = createVoiceConfig({});
+  assert.equal(defaults.voice, "pm_alex");
+  assert.equal(defaults.speed, 0.94);
+
+  assert.equal(createVoiceConfig({ KOKORO_TTS_SPEED: "9" }).speed, 1.25);
+  assert.equal(createVoiceConfig({ KOKORO_TTS_SPEED: "invalida" }).speed, 0.94);
 });
 

@@ -1,0 +1,10 @@
+[project]
+name = "alex-kokoro-voice"
+version = "0.1.0"
+description = "Servico local de voz neural do Alex"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "kokoro>=0.9.4,<1",
+  "numpy>=2,<3",
+  "soundfile>=0.13,<1"
+]

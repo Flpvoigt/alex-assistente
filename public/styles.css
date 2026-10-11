@@ -17,6 +17,7 @@ body {
 }
 
 button { font: inherit; }
+select { font: inherit; }
 
 .shell {
   width: min(1080px, calc(100% - 32px));
@@ -89,7 +90,33 @@ h1 { margin: 6px 0 4px; font-size: clamp(3.4rem, 8vw, 5.8rem); line-height: 1; }
 .controls button:disabled { opacity: 0.4; cursor: not-allowed; }
 .primary { color: #03101b; background: #75dcff; font-weight: 800; }
 .secondary { color: #d7dfeb; background: #1c2a3f; }
+.tertiary { color: #bfeeff; background: rgba(65, 179, 224, 0.13); }
 .privacy { margin: 24px 0 0; color: #728198; font-size: 0.82rem; }
+
+.voice-control {
+  max-width: 360px;
+  margin: 24px auto 0;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.voice-control label { color: #b9c7da; font-size: 0.78rem; font-weight: 700; }
+.voice-row { display: flex; gap: 8px; margin-top: 8px; }
+.voice-row select {
+  min-width: 0;
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #eef7ff;
+  background: #101d30;
+}
+
+.voice-row button { min-height: 42px; padding: 0 14px; border: 0; border-radius: 10px; cursor: pointer; }
+.voice-control p { margin: 8px 2px 0; color: #728198; font-size: 0.72rem; line-height: 1.4; }
 
 .conversation { min-height: 620px; padding: 28px; display: flex; flex-direction: column; }
 .conversation-header { display: flex; align-items: center; justify-content: space-between; }
