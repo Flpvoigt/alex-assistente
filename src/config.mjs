@@ -15,6 +15,16 @@ export function createGroqConfig(env = process.env) {
   };
 }
 
+export function createVoiceConfig(env = process.env) {
+  const parsedSpeed = Number(env.KOKORO_TTS_SPEED || 0.94);
+  return {
+    url: env.KOKORO_TTS_URL || "http://127.0.0.1:8787/v1/audio/speech",
+    healthUrl: env.KOKORO_HEALTH_URL || "http://127.0.0.1:8787/health",
+    voice: env.KOKORO_TTS_VOICE || "pm_alex",
+    speed: Number.isFinite(parsedSpeed) ? Math.min(1.25, Math.max(0.75, parsedSpeed)) : 0.94
+  };
+}
+
 export function sanitizeHistory(history) {
   if (!Array.isArray(history)) return [];
 

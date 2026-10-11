@@ -3,7 +3,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ALEX_INSTRUCTIONS, createGroqConfig, sanitizeHistory } from "./config.mjs";
+import {
+  ALEX_INSTRUCTIONS,
+  createGroqConfig,
+  createVoiceConfig,
+  sanitizeHistory
+} from "./config.mjs";
 import { loadEnvFile } from "./env.mjs";
 
 loadEnvFile();
@@ -180,6 +185,78 @@ async function respond(request, response) {
   }
 }
 
+async function voiceStatus(response) {
+  const config = createVoiceConfig();
+  try {
+    const upstream = await fetch(config.healthUrl, { signal: AbortSignal.timeout(1500) });
+    const data = await readGroqResponse(upstream);
+    sendJson(response, upstream.ok ? 200 : 503, {
+      provider: "Kokoro",
+      voice: config.voice,
+      ready: upstream.ok && data.ready === true,
+      state: data.state || (upstream.ok ? "loading" : "unavailable"),
+      error: data.error || null
+    });
+  } catch {
+    sendJson(response, 200, {
+      provider: "system",
+      voice: null,
+      ready: false,
+      state: "unavailable"
+    });
+  }
+}
+
+async function synthesizeSpeech(request, response) {
+  try {
+    const rawBody = await readRequestBody(request, 64 * 1024);
+    const body = JSON.parse(rawBody.toString("utf8"));
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (!text || text.length > 1200) {
+      sendJson(response, 400, { error: "Texto vazio ou muito longo para a voz." });
+      return;
+    }
+
+    const config = createVoiceConfig();
+    const upstream = await fetch(config.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "kokoro",
+        input: text,
+        voice: config.voice,
+        response_format: "wav",
+        speed: config.speed
+      }),
+      signal: AbortSignal.timeout(90000)
+    });
+
+    if (!upstream.ok) {
+      const data = await readGroqResponse(upstream);
+      sendJson(response, upstream.status, {
+        error: data.error || "A voz neural local ainda nao esta pronta."
+      });
+      return;
+    }
+
+    const audio = Buffer.from(await upstream.arrayBuffer());
+    response.writeHead(200, {
+      "Content-Type": upstream.headers.get("content-type") || "audio/wav",
+      "Content-Length": audio.length,
+      "Cache-Control": "no-store"
+    });
+    response.end(audio);
+  } catch (error) {
+    const invalidJson = error instanceof SyntaxError;
+    console.error("Falha na voz neural local:", error);
+    sendJson(response, invalidJson ? 400 : 503, {
+      error: invalidJson
+        ? "JSON invalido."
+        : "Voz neural indisponivel. Execute npm run voice:setup."
+    });
+  }
+}
+
 async function serveStatic(urlPath, response) {
   const requestedPath = urlPath === "/" ? "/index.html" : urlPath;
   const decodedPath = decodeURIComponent(requestedPath);
@@ -218,13 +295,21 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "GET" && url.pathname === "/api/status") {
       const config = createGroqConfig();
+      const voiceConfig = createVoiceConfig();
       sendJson(response, 200, {
         assistant: "Alex",
         provider: "Groq",
         chatModel: config.chatModel,
         sttModel: config.sttModel,
-        apiKeyConfigured: Boolean(process.env.GROQ_API_KEY)
+        apiKeyConfigured: Boolean(process.env.GROQ_API_KEY),
+        ttsProvider: "Kokoro",
+        ttsVoice: voiceConfig.voice
       });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/voice/status") {
+      await voiceStatus(response);
       return;
     }
 
@@ -235,6 +320,11 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "POST" && url.pathname === "/api/respond") {
       await respond(request, response);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/speech") {
+      await synthesizeSpeech(request, response);
       return;
     }
 

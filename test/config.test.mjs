@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGroqConfig, sanitizeHistory } from "../src/config.mjs";
+import { createGroqConfig, createVoiceConfig, sanitizeHistory } from "../src/config.mjs";
 
 test("usa modelos Groq de producao por padrao", () => {
   const config = createGroqConfig({});
@@ -32,5 +32,14 @@ test("limita e limpa o historico enviado ao modelo", () => {
   assert.equal(sanitized.length, 12);
   assert.equal(sanitized[0].content, "mensagem-2");
   assert.equal(sanitized.at(-1).content, "mensagem-13");
+});
+
+test("configura a voz neural masculina local com velocidade segura", () => {
+  const defaults = createVoiceConfig({});
+  assert.equal(defaults.voice, "pm_alex");
+  assert.equal(defaults.speed, 0.94);
+
+  assert.equal(createVoiceConfig({ KOKORO_TTS_SPEED: "9" }).speed, 1.25);
+  assert.equal(createVoiceConfig({ KOKORO_TTS_SPEED: "invalida" }).speed, 0.94);
 });
 

@@ -2,9 +2,15 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Alex: preparar voz neural",
+      "type": "npm",
+      "script": "voice:setup",
+      "problemMatcher": []
+    },
+    {
       "label": "Alex: iniciar",
       "type": "npm",
-      "script": "dev",
+      "script": "start",
       "isBackground": true,
       "problemMatcher": [],
       "presentation": {

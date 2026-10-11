@@ -14,6 +14,7 @@ const SILENCE_THRESHOLD = 0.025;
 const SILENCE_DURATION_MS = 850;
 const NO_SPEECH_TIMEOUT_MS = 12000;
 const MAX_RECORDING_MS = 30000;
+const KOKORO_VOICE_VALUE = "kokoro:pm_alex";
 
 let conversationActive = false;
 let phase = "idle";
@@ -33,8 +34,15 @@ let speechBuffer = "";
 let pendingSpeechParts = 0;
 let partialAssistantText = "";
 const activeUtterances = new Set();
+const speechRequestControllers = new Set();
 let availableVoices = [];
 let selectedVoice;
+let selectedVoiceMode = "system";
+let neuralVoiceReady = false;
+let neuralVoiceState = "loading";
+let activeAudioCancel;
+let speechPlaybackQueue = Promise.resolve();
+let speechGeneration = 0;
 
 function setPhase(nextPhase, message) {
   phase = nextPhase;
@@ -229,25 +237,13 @@ function savedVoiceUri() {
 }
 
 function refreshVoices() {
-  if (!("speechSynthesis" in window)) {
-    voiceSelect.innerHTML = "<option>Voz nao suportada neste navegador</option>";
-    voiceSelect.disabled = true;
-    previewVoiceButton.disabled = true;
-    voiceNote.textContent = "Use Chrome, Edge ou Safari em um aparelho com voz pt-BR instalada.";
-    return;
-  }
-
-  availableVoices = listPortugueseMaleVoices(window.speechSynthesis.getVoices(), savedVoiceUri());
+  const saved = savedVoiceUri();
+  const systemVoices = "speechSynthesis" in window ? window.speechSynthesis.getVoices() : [];
+  availableVoices = listPortugueseMaleVoices(systemVoices, saved);
   voiceSelect.replaceChildren();
 
-  if (!availableVoices.length) {
-    const option = new Option("Nenhuma voz masculina pt-BR encontrada", "");
-    voiceSelect.add(option);
-    voiceSelect.disabled = true;
-    previewVoiceButton.disabled = true;
-    selectedVoice = undefined;
-    voiceNote.textContent = "Instale uma voz masculina brasileira nas configuracoes de acessibilidade do aparelho.";
-    return;
+  if (neuralVoiceReady) {
+    voiceSelect.add(new Option("Alex Neural — Kokoro local (recomendado)", KOKORO_VOICE_VALUE));
   }
 
   for (const voice of availableVoices) {
@@ -255,24 +251,172 @@ function refreshVoices() {
     voiceSelect.add(new Option(`${voice.name}${quality}`, voice.voiceURI));
   }
 
+  if (!voiceSelect.options.length) {
+    const loading = neuralVoiceState === "loading";
+    const option = new Option(
+      loading ? "Preparando Alex Neural..." : "Nenhuma voz masculina disponivel",
+      ""
+    );
+    voiceSelect.add(option);
+    voiceSelect.disabled = true;
+    previewVoiceButton.disabled = true;
+    selectedVoice = undefined;
+    selectedVoiceMode = "system";
+    voiceNote.textContent = loading
+      ? "O primeiro carregamento da voz gratuita pode levar alguns minutos."
+      : "Execute npm run voice:setup para instalar a voz neural gratuita.";
+    return;
+  }
+
   voiceSelect.disabled = conversationActive;
   previewVoiceButton.disabled = conversationActive;
-  selectedVoice = availableVoices[0];
-  voiceSelect.value = selectedVoice.voiceURI;
-  voiceNote.textContent = `Voz ativa: ${selectedVoice.name}. Ritmo ajustado para conversa natural.`;
+  const values = [...voiceSelect.options].map((option) => option.value);
+  voiceSelect.value = values.includes(saved)
+    ? saved
+    : neuralVoiceReady
+      ? KOKORO_VOICE_VALUE
+      : availableVoices[0].voiceURI;
+  applyVoiceSelection(false);
 }
 
-function speakPreview() {
-  if (!selectedVoice || conversationActive) return;
-  window.speechSynthesis.cancel();
-  const preview = new SpeechSynthesisUtterance(
-    "Olá, eu sou o Alex. Estou pronto para conversar com você."
-  );
-  preview.lang = "pt-BR";
-  preview.rate = 0.96;
-  preview.pitch = 0.96;
-  preview.voice = selectedVoice;
-  window.speechSynthesis.speak(preview);
+function applyVoiceSelection(persist = true) {
+  selectedVoiceMode = voiceSelect.value === KOKORO_VOICE_VALUE ? "kokoro" : "system";
+  if (selectedVoiceMode === "system") {
+    selectedVoice = availableVoices.find((voice) => voice.voiceURI === voiceSelect.value);
+  } else {
+    selectedVoice = availableVoices[0];
+  }
+
+  if (persist) {
+    try {
+      localStorage.setItem("alex.voiceUri", voiceSelect.value);
+    } catch {
+      // A escolha continua valida nesta pagina quando o armazenamento estiver bloqueado.
+    }
+  }
+
+  voiceNote.textContent =
+    selectedVoiceMode === "kokoro"
+      ? "Alex Neural usa Kokoro local: masculino, brasileiro e sem custo por fala."
+      : `Reserva do sistema: ${selectedVoice?.name || "indisponivel"}.`;
+}
+
+async function refreshNeuralVoiceStatus() {
+  try {
+    const response = await fetch("/api/voice/status", { cache: "no-store" });
+    const data = await response.json();
+    neuralVoiceReady = response.ok && data.ready === true;
+    neuralVoiceState = data.state || (neuralVoiceReady ? "ready" : "unavailable");
+  } catch {
+    neuralVoiceReady = false;
+    neuralVoiceState = "unavailable";
+  }
+
+  refreshVoices();
+  if (!neuralVoiceReady) {
+    window.setTimeout(refreshNeuralVoiceStatus, 2500);
+  }
+}
+
+async function requestNeuralSpeech(text, signal) {
+  const response = await fetch("/api/speech", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+    signal
+  });
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || "Voz neural indisponivel.");
+  }
+  return response.blob();
+}
+
+function playAudioBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      activeAudioCancel = undefined;
+      if (error) reject(error);
+      else resolve();
+    };
+    activeAudioCancel = () => {
+      audio.pause();
+      finish();
+    };
+    audio.addEventListener("ended", () => finish(), { once: true });
+    audio.addEventListener("error", () => finish(new Error("Falha ao reproduzir a voz neural.")), {
+      once: true
+    });
+    audio.play().catch(finish);
+  });
+}
+
+function speakWithSystem(text) {
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window) || !selectedVoice) {
+      resolve();
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "pt-BR";
+    utterance.rate = 0.96;
+    utterance.pitch = 0.96;
+    utterance.voice = selectedVoice;
+    activeUtterances.add(utterance);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      activeUtterances.delete(utterance);
+      resolve();
+    };
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    window.speechSynthesis.resume();
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
+function stopSpeechPlayback() {
+  speechGeneration += 1;
+  for (const controller of speechRequestControllers) controller.abort();
+  speechRequestControllers.clear();
+  activeAudioCancel?.();
+  activeAudioCancel = undefined;
+  window.speechSynthesis?.cancel();
+  activeUtterances.clear();
+  pendingSpeechParts = 0;
+  speechPlaybackQueue = Promise.resolve();
+}
+
+async function speakPreview() {
+  if (conversationActive || !voiceSelect.value) return;
+  stopSpeechPlayback();
+  const text = "Olá, eu sou o Alex. Estou pronto para conversar com você.";
+  if (selectedVoiceMode === "kokoro") {
+    const controller = new AbortController();
+    speechRequestControllers.add(controller);
+    try {
+      const audio = await requestNeuralSpeech(text, controller.signal);
+      speechRequestControllers.delete(controller);
+      await playAudioBlob(audio);
+    } catch (error) {
+      speechRequestControllers.delete(controller);
+      if (error.name !== "AbortError") {
+        voiceNote.textContent = `${error.message} Usando a voz masculina do sistema como reserva.`;
+        await speakWithSystem(text);
+      }
+    }
+    return;
+  }
+  await speakWithSystem(text);
 }
 
 function maybeResumeListening() {
@@ -284,31 +428,49 @@ function maybeResumeListening() {
 
 function queueSpeech(text) {
   const spokenText = text.trim();
-  if (!spokenText || !("speechSynthesis" in window) || !selectedVoice) return;
+  if (!spokenText) return;
 
-  const utterance = new SpeechSynthesisUtterance(spokenText);
-  utterance.lang = "pt-BR";
-  utterance.rate = 0.96;
-  utterance.pitch = 0.96;
-  utterance.voice = selectedVoice || null;
+  const generation = speechGeneration;
+  const useNeuralVoice = selectedVoiceMode === "kokoro" && neuralVoiceReady;
+  let neuralRequest;
+  if (useNeuralVoice) {
+    const controller = new AbortController();
+    speechRequestControllers.add(controller);
+    neuralRequest = requestNeuralSpeech(spokenText, controller.signal)
+      .then((audio) => ({ audio }))
+      .catch((error) => ({ error }))
+      .finally(() => speechRequestControllers.delete(controller));
+  }
+
   pendingSpeechParts += 1;
-  activeUtterances.add(utterance);
-  let settled = false;
+  const playPart = speechPlaybackQueue
+    .catch(() => {})
+    .then(async () => {
+      if (generation !== speechGeneration || !conversationActive) return;
+      setPhase("speaking", "Alex esta respondendo...");
+      if (!neuralRequest) {
+        await speakWithSystem(spokenText);
+        return;
+      }
 
-  utterance.onstart = () => {
-    if (conversationActive) setPhase("speaking", "Alex esta respondendo...");
-  };
-  const finish = () => {
-    if (settled) return;
-    settled = true;
-    activeUtterances.delete(utterance);
-    pendingSpeechParts = Math.max(0, pendingSpeechParts - 1);
-    maybeResumeListening();
-  };
-  utterance.onend = finish;
-  utterance.onerror = finish;
-  window.speechSynthesis.resume();
-  window.speechSynthesis.speak(utterance);
+      const result = await neuralRequest;
+      if (generation !== speechGeneration || !conversationActive) return;
+      if (result.error) {
+        if (result.error.name !== "AbortError") {
+          console.warn("Voz neural indisponivel, usando reserva:", result.error);
+          await speakWithSystem(spokenText);
+        }
+        return;
+      }
+      await playAudioBlob(result.audio);
+    })
+    .catch((error) => console.error("Falha ao reproduzir voz:", error))
+    .finally(() => {
+      if (generation !== speechGeneration) return;
+      pendingSpeechParts = Math.max(0, pendingSpeechParts - 1);
+      maybeResumeListening();
+    });
+  speechPlaybackQueue = playPart;
 }
 
 function feedSpeech(delta, flush = false) {
@@ -431,9 +593,7 @@ function cancelCurrentResponse() {
   requestAbort = undefined;
   responseStreaming = false;
   speechBuffer = "";
-  window.speechSynthesis?.cancel();
-  activeUtterances.clear();
-  pendingSpeechParts = 0;
+  stopSpeechPlayback();
 
   if (partialAssistantText.trim()) {
     conversationHistory.push({ role: "assistant", content: partialAssistantText.trim() });
@@ -454,13 +614,13 @@ function startConversation() {
     setPhase("error", "Este navegador nao oferece gravacao de voz compativel.");
     return;
   }
-  if (!selectedVoice) {
-    setPhase("error", "Instale uma voz masculina em portugues antes de iniciar.");
+  if (!neuralVoiceReady && !selectedVoice) {
+    setPhase("error", "Execute npm run voice:setup para instalar a voz do Alex.");
     return;
   }
 
   conversationActive = true;
-  window.speechSynthesis?.cancel();
+  stopSpeechPlayback();
   voiceSelect.disabled = true;
   previewVoiceButton.disabled = true;
   setPhase("connecting", "Iniciando conversa...");
@@ -474,8 +634,8 @@ function endConversation() {
   cancelCurrentResponse();
   if (mediaRecorder?.state === "recording") stopRecording(false);
   cleanupMicrophone();
-  voiceSelect.disabled = !availableVoices.length;
-  previewVoiceButton.disabled = !availableVoices.length;
+  voiceSelect.disabled = !voiceSelect.value;
+  previewVoiceButton.disabled = !voiceSelect.value;
   setPhase("idle", "Conversa encerrada.");
 }
 
@@ -486,17 +646,11 @@ connectButton.addEventListener("click", () => {
 disconnectButton.addEventListener("click", endConversation);
 
 voiceSelect.addEventListener("change", () => {
-  selectedVoice = availableVoices.find((voice) => voice.voiceURI === voiceSelect.value);
-  if (!selectedVoice) return;
-  try {
-    localStorage.setItem("alex.voiceUri", selectedVoice.voiceURI);
-  } catch {
-    // A escolha continua valida nesta pagina quando o armazenamento estiver bloqueado.
-  }
-  voiceNote.textContent = `Voz ativa: ${selectedVoice.name}. Ritmo ajustado para conversa natural.`;
+  applyVoiceSelection();
 });
 
 previewVoiceButton.addEventListener("click", speakPreview);
 window.speechSynthesis?.addEventListener?.("voiceschanged", refreshVoices);
 refreshVoices();
+refreshNeuralVoiceStatus();
 
