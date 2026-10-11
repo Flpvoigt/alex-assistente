@@ -23,14 +23,41 @@ function start(command, args, label) {
 const voiceEnabled = process.env.ALEX_TTS_AUTOSTART !== "false";
 if (voiceEnabled) {
   const uvAvailable = spawnSync("uv", ["--version"], { stdio: "ignore" }).status === 0;
-  if (uvAvailable) {
+  const voiceReady = uvAvailable && spawnSync(
+    "uv",
+    [
+      "run",
+      "--project",
+      "voice",
+      "--python",
+      "3.12",
+      "--no-sync",
+      "python",
+      "-c",
+      "import kokoro, numpy, soundfile, torch"
+    ],
+    { cwd: projectDirectory, stdio: "ignore" }
+  ).status === 0;
+
+  if (voiceReady) {
     start(
       "uv",
-      ["run", "--project", "voice", "--python", "3.12", "python", "voice/server.py"],
+      [
+        "run",
+        "--project",
+        "voice",
+        "--python",
+        "3.12",
+        "--no-sync",
+        "python",
+        "voice/server.py"
+      ],
       "A voz neural"
     );
   } else {
-    console.warn("uv nao encontrado; usando a voz masculina do sistema como reserva.");
+    console.warn(
+      "Voz neural ainda nao instalada; usando a voz masculina do sistema. Rode npm run voice:setup."
+    );
   }
 }
 

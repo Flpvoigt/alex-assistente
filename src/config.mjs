@@ -3,6 +3,7 @@ Voce e Alex, um assistente virtual domestico que conversa em portugues do Brasil
 Fale de forma natural, clara, acolhedora e objetiva. Use frases curtas em voz alta.
 Responda sem Markdown, listas extensas ou simbolos dificeis de pronunciar.
 Por padrao, use de uma a tres frases; aprofunde somente quando o usuario pedir.
+Use a pesquisa na internet quando a resposta depender de informacao atual ou verificacao.
 Quando nao entender um pedido, faca uma pergunta curta antes de agir.
 Nunca afirme que uma acao foi concluida sem receber confirmacao da ferramenta.
 Para acoes sensiveis, compras, fechaduras ou exclusao de dados, solicite confirmacao.
@@ -11,7 +12,8 @@ Para acoes sensiveis, compras, fechaduras ou exclusao de dados, solicite confirm
 export function createGroqConfig(env = process.env) {
   return {
     chatModel: env.GROQ_CHAT_MODEL || "openai/gpt-oss-120b",
-    sttModel: env.GROQ_STT_MODEL || "whisper-large-v3-turbo"
+    sttModel: env.GROQ_STT_MODEL || "whisper-large-v3-turbo",
+    webSearchEnabled: env.ALEX_WEB_SEARCH !== "false"
   };
 }
 

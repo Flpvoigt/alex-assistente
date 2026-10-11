@@ -79,3 +79,17 @@ export function listPortugueseMaleVoices(voices, savedVoiceUri = "") {
     .sort((left, right) => rankVoice(right, savedVoiceUri) - rankVoice(left, savedVoiceUri));
 }
 
+export function normalizeSpeechText(text) {
+  return String(text || "")
+    .replace(/```[\s\S]*?```/g, " trecho de código ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/〖[^〗]+〗/g, "")
+    .replace(/\[\d+\]/g, "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[*_#>|~]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+

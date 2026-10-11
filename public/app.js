@@ -1,4 +1,4 @@
-import { listPortugueseMaleVoices } from "./voice.mjs";
+import { listPortugueseMaleVoices, normalizeSpeechText } from "./voice.mjs";
 
 const connectButton = document.querySelector("#connect");
 const disconnectButton = document.querySelector("#disconnect");
@@ -9,6 +9,7 @@ const statusElement = document.querySelector("#status");
 const badgeElement = document.querySelector("#connection-badge");
 const messagesElement = document.querySelector("#messages");
 const orbElement = document.querySelector(".orb");
+const clockElement = document.querySelector("#clock");
 
 const SILENCE_THRESHOLD = 0.025;
 const SILENCE_DURATION_MS = 850;
@@ -47,7 +48,7 @@ let speechGeneration = 0;
 function setPhase(nextPhase, message) {
   phase = nextPhase;
   statusElement.textContent = message;
-  badgeElement.textContent = conversationActive ? "conversa ativa" : "desconectado";
+  badgeElement.innerHTML = `<i></i> ${conversationActive ? "conectado" : "offline"}`;
   badgeElement.dataset.state = nextPhase === "error" ? "error" : conversationActive ? "connected" : "idle";
   orbElement.dataset.state = nextPhase;
 
@@ -427,7 +428,7 @@ function maybeResumeListening() {
 }
 
 function queueSpeech(text) {
-  const spokenText = text.trim();
+  const spokenText = normalizeSpeechText(text);
   if (!spokenText) return;
 
   const generation = speechGeneration;
@@ -653,4 +654,14 @@ previewVoiceButton.addEventListener("click", speakPreview);
 window.speechSynthesis?.addEventListener?.("voiceschanged", refreshVoices);
 refreshVoices();
 refreshNeuralVoiceStatus();
+
+function updateClock() {
+  clockElement.textContent = new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date());
+}
+
+updateClock();
+window.setInterval(updateClock, 30000);
 
