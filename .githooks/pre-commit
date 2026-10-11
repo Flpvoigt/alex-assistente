@@ -1,0 +1,11 @@
+#!/bin/sh
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+case "$branch" in
+  main|master)
+    echo "Commits diretos em $branch nao sao permitidos. Crie uma branch de trabalho." >&2
+    exit 1
+    ;;
+esac
+

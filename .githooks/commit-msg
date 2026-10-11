@@ -1,0 +1,9 @@
+#!/bin/sh
+
+message_file=$1
+trailer="Co-authored-by: gustavoLoes <gustavoloes7@gmail.com>"
+
+if ! grep -Fqi "$trailer" "$message_file"; then
+  printf '\n%s\n' "$trailer" >> "$message_file"
+fi
+

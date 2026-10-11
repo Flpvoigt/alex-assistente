@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07111f" />
+    <title>Alex — Assistente Virtual</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="assistant" aria-labelledby="title">
+        <div class="orb" aria-hidden="true"><span></span></div>
+        <p class="eyebrow">ASSISTENTE DOMESTICO</p>
+        <h1 id="title">Alex</h1>
+        <p id="status" class="status" aria-live="polite">Pronto para iniciar</p>
+
+        <div class="controls">
+          <button id="connect" class="primary">Conversar com Alex</button>
+          <button id="disconnect" class="secondary" disabled>Encerrar</button>
+        </div>
+
+        <p class="privacy">O microfone so e ativado depois da sua autorizacao.</p>
+      </section>
+
+      <section class="conversation" aria-labelledby="conversation-title">
+        <div class="conversation-header">
+          <h2 id="conversation-title">Conversa</h2>
+          <span id="connection-badge" class="badge">desconectado</span>
+        </div>
+        <div id="messages" class="messages" aria-live="polite">
+          <p class="placeholder">As transcricoes aparecerao aqui quando estiverem disponiveis.</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
+
