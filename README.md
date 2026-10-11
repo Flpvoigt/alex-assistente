@@ -7,9 +7,11 @@ Alex e um assistente virtual domestico por voz, projetado para conversar em port
 O primeiro marco inclui:
 
 - interface web responsiva;
-- captura de microfone com cancelamento de eco e reducao de ruido;
-- conversa de voz pela OpenAI Realtime API usando WebRTC;
-- chave da API protegida no backend;
+- captura de microfone com cancelamento de eco, reducao de ruido e parada por silencio;
+- transcricao em portugues com Groq Whisper Large V3 Turbo;
+- respostas pelo GPT-OSS 120B executado na Groq;
+- leitura em voz alta por uma voz `pt-BR` instalada no navegador ou sistema;
+- chave da Groq protegida no backend;
 - configuracao pronta para o VS Code;
 - testes basicos e regras de contribuicao;
 - hooks que bloqueiam commits na branch principal e adicionam o coautor obrigatorio.
@@ -17,7 +19,7 @@ O primeiro marco inclui:
 ## Requisitos
 
 - Node.js 20 ou superior;
-- uma chave da API da OpenAI com acesso ao modelo Realtime;
+- uma chave da API da Groq;
 - navegador moderno com acesso ao microfone.
 
 ## Executar
@@ -26,7 +28,7 @@ O primeiro marco inclui:
 cp .env.example .env
 ```
 
-Preencha `OPENAI_API_KEY` no arquivo `.env` e execute:
+Preencha `GROQ_API_KEY` no arquivo `.env` e execute:
 
 ```bash
 npm start
@@ -48,7 +50,11 @@ npm run check
 
 ## Seguranca
 
-O arquivo `.env` e ignorado pelo Git. A chave permanente nunca deve ser colocada em `public/` nem enviada ao navegador. O microfone so e iniciado apos uma acao do usuario.
+O arquivo `.env` e ignorado pelo Git. A chave permanente nunca deve ser colocada em `public/` nem enviada ao navegador. O microfone so e iniciado apos uma acao do usuario e para automaticamente quando detecta silencio.
+
+## Como a voz funciona
+
+A Groq oferece transcricao multilíngue, mas o TTS documentado atualmente nao possui portugues. Por isso esta versao usa a voz `pt-BR` do proprio sistema, sem custo adicional. A naturalidade varia conforme o navegador, a TV e as vozes instaladas.
 
 ## Proximos marcos
 

@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createSessionConfig } from "./config.mjs";
+import { ALEX_INSTRUCTIONS, createGroqConfig, sanitizeHistory } from "./config.mjs";
 import { loadEnvFile } from "./env.mjs";
 
 loadEnvFile();
@@ -26,7 +26,7 @@ function sendJson(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
-async function readRequestBody(request, limit = 1_000_000) {
+async function readRequestBody(request, limit = 25 * 1024 * 1024) {
   const chunks = [];
   let size = 0;
 
@@ -36,49 +36,132 @@ async function readRequestBody(request, limit = 1_000_000) {
     chunks.push(chunk);
   }
 
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
 }
 
-async function createRealtimeSession(request, response) {
-  if (!process.env.OPENAI_API_KEY) {
-    sendJson(response, 503, {
-      error: "OPENAI_API_KEY nao configurada. Copie .env.example para .env."
-    });
-    return;
+function requireGroqKey(response) {
+  if (process.env.GROQ_API_KEY) return true;
+  sendJson(response, 503, {
+    error: "GROQ_API_KEY nao configurada. Copie .env.example para .env."
+  });
+  return false;
+}
+
+async function readGroqResponse(response) {
+  const body = await response.text();
+  try {
+    return JSON.parse(body);
+  } catch {
+    return { error: body || "Resposta invalida da Groq." };
   }
+}
+
+async function transcribe(request, response) {
+  if (!requireGroqKey(response)) return;
 
   try {
-    const sdp = await readRequestBody(request);
-    if (!sdp.trim()) {
-      sendJson(response, 400, { error: "Oferta SDP vazia." });
+    const audio = await readRequestBody(request);
+    if (!audio.length) {
+      sendJson(response, 400, { error: "Audio vazio." });
       return;
     }
 
+    const contentType = request.headers["content-type"] || "audio/webm";
+    const extension = contentType.includes("wav")
+      ? "wav"
+      : contentType.includes("mp4")
+        ? "m4a"
+        : contentType.includes("ogg")
+          ? "ogg"
+          : "webm";
     const form = new FormData();
-    form.set("sdp", sdp);
-    form.set("session", JSON.stringify(createSessionConfig()));
+    form.set("file", new Blob([audio], { type: contentType }), `fala.${extension}`);
+    form.set("model", createGroqConfig().sttModel);
+    form.set("language", "pt");
+    form.set("response_format", "json");
+    form.set("prompt", "O assistente se chama Alex. Transcreva em portugues do Brasil.");
 
-    const openAiResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "OpenAI-Safety-Identifier": "alex-local-user"
-      },
-      body: form
-    });
+    const groqResponse = await fetch(
+      "https://api.groq.com/openai/v1/audio/transcriptions",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        body: form
+      }
+    );
+    const data = await readGroqResponse(groqResponse);
 
-    const body = await openAiResponse.text();
-    response.writeHead(openAiResponse.status, {
-      "Content-Type": openAiResponse.ok
-        ? "application/sdp"
-        : "application/json; charset=utf-8"
-    });
-    response.end(body);
+    if (!groqResponse.ok) {
+      sendJson(response, groqResponse.status, {
+        error: data.error?.message || data.error || "Falha na transcricao."
+      });
+      return;
+    }
+
+    sendJson(response, 200, { text: data.text?.trim() || "" });
   } catch (error) {
     const tooLarge = error instanceof Error && error.message === "PAYLOAD_TOO_LARGE";
-    console.error("Falha ao criar sessao Realtime:", error);
+    console.error("Falha ao transcrever com a Groq:", error);
     sendJson(response, tooLarge ? 413 : 502, {
-      error: tooLarge ? "Oferta SDP muito grande." : "Falha ao criar sessao de voz."
+      error: tooLarge ? "Audio muito grande." : "Falha ao transcrever o audio."
+    });
+  }
+}
+
+async function respond(request, response) {
+  if (!requireGroqKey(response)) return;
+
+  try {
+    const rawBody = await readRequestBody(request, 256 * 1024);
+    const body = JSON.parse(rawBody.toString("utf8"));
+    const message = typeof body.message === "string" ? body.message.trim() : "";
+    if (!message || message.length > 4000) {
+      sendJson(response, 400, { error: "Mensagem vazia ou muito longa." });
+      return;
+    }
+
+    const config = createGroqConfig();
+    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: config.chatModel,
+        messages: [
+          { role: "system", content: ALEX_INSTRUCTIONS },
+          ...sanitizeHistory(body.history),
+          { role: "user", content: message }
+        ],
+        temperature: 0.4,
+        max_completion_tokens: 500
+      })
+    });
+    const data = await readGroqResponse(groqResponse);
+
+    if (!groqResponse.ok) {
+      sendJson(response, groqResponse.status, {
+        error: data.error?.message || data.error || "Falha ao gerar resposta."
+      });
+      return;
+    }
+
+    const text = data.choices?.[0]?.message?.content?.trim();
+    if (!text) {
+      sendJson(response, 502, { error: "A Groq retornou uma resposta vazia." });
+      return;
+    }
+
+    sendJson(response, 200, {
+      text,
+      usage: data.usage || null
+    });
+  } catch (error) {
+    const invalidJson = error instanceof SyntaxError;
+    console.error("Falha ao responder com a Groq:", error);
+    sendJson(response, invalidJson ? 400 : 502, {
+      error: invalidJson ? "JSON invalido." : "Falha ao gerar resposta."
     });
   }
 }
@@ -120,17 +203,24 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === "GET" && url.pathname === "/api/status") {
-      const config = createSessionConfig();
+      const config = createGroqConfig();
       sendJson(response, 200, {
         assistant: "Alex",
-        model: config.model,
-        apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY)
+        provider: "Groq",
+        chatModel: config.chatModel,
+        sttModel: config.sttModel,
+        apiKeyConfigured: Boolean(process.env.GROQ_API_KEY)
       });
       return;
     }
 
-    if (request.method === "POST" && url.pathname === "/session") {
-      await createRealtimeSession(request, response);
+    if (request.method === "POST" && url.pathname === "/api/transcribe") {
+      await transcribe(request, response);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/respond") {
+      await respond(request, response);
       return;
     }
 

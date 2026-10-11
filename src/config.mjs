@@ -6,16 +6,27 @@ Nunca afirme que uma acao foi concluida sem receber confirmacao da ferramenta.
 Para acoes sensiveis, compras, fechaduras ou exclusao de dados, solicite confirmacao.
 `.trim();
 
-export function createSessionConfig(env = process.env) {
+export function createGroqConfig(env = process.env) {
   return {
-    type: "realtime",
-    model: env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1",
-    instructions: ALEX_INSTRUCTIONS,
-    audio: {
-      output: {
-        voice: env.OPENAI_REALTIME_VOICE || "marin"
-      }
-    }
+    chatModel: env.GROQ_CHAT_MODEL || "openai/gpt-oss-120b",
+    sttModel: env.GROQ_STT_MODEL || "whisper-large-v3-turbo"
   };
+}
+
+export function sanitizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+
+  return history
+    .filter(
+      (item) =>
+        item &&
+        (item.role === "user" || item.role === "assistant") &&
+        typeof item.content === "string"
+    )
+    .slice(-12)
+    .map((item) => ({
+      role: item.role,
+      content: item.content.slice(0, 4000)
+    }));
 }
 
