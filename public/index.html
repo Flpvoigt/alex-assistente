@@ -9,40 +9,82 @@
   </head>
   <body>
     <main class="shell">
-      <section class="assistant" aria-labelledby="title">
-        <div class="orb" aria-hidden="true"><span></span></div>
-        <p class="eyebrow">ASSISTENTE DOMESTICO</p>
-        <h1 id="title">Alex</h1>
-        <p id="status" class="status" aria-live="polite">Pronto para iniciar</p>
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Alex, início">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>ALEX</span>
+        </a>
+        <div class="topbar-status">
+          <span id="connection-badge" class="badge"><i></i> offline</span>
+          <time id="clock">--:--</time>
+        </div>
+      </header>
 
-        <div class="controls">
-          <button id="connect" class="primary">Iniciar conversa</button>
-          <button id="disconnect" class="secondary" disabled>Encerrar conversa</button>
+      <section class="stage" aria-labelledby="title">
+        <div class="ambient ambient-one" aria-hidden="true"></div>
+        <div class="ambient ambient-two" aria-hidden="true"></div>
+
+        <div class="assistant-core">
+          <div class="orb" aria-hidden="true">
+            <div class="orb-ring orb-ring-one"></div>
+            <div class="orb-ring orb-ring-two"></div>
+            <div class="orb-surface">
+              <span class="wave wave-one"></span>
+              <span class="wave wave-two"></span>
+              <span class="wave wave-three"></span>
+              <span class="wave wave-four"></span>
+              <span class="wave wave-five"></span>
+            </div>
+          </div>
+
+          <p class="eyebrow">ASSISTENTE DA CASA</p>
+          <h1 id="title">Alex</h1>
+          <p id="status" class="status" aria-live="polite">Pronto para conversar</p>
+
+          <div class="controls">
+            <button id="connect" class="primary" type="button">
+              <span class="mic-icon" aria-hidden="true"></span>
+              <span>Iniciar conversa</span>
+            </button>
+            <button id="disconnect" class="secondary" type="button" disabled>Encerrar</button>
+          </div>
         </div>
 
+        <aside class="transcript" aria-labelledby="conversation-title">
+          <div class="conversation-header">
+            <div>
+              <p class="panel-kicker">TEMPO REAL</p>
+              <h2 id="conversation-title">Conversa</h2>
+            </div>
+            <span class="privacy-mark">privado</span>
+          </div>
+          <div id="messages" class="messages" aria-live="polite">
+            <div class="placeholder">
+              <span class="placeholder-line"></span>
+              <p>Toque em iniciar e fale naturalmente.</p>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="dock">
         <div class="voice-control">
-          <label for="voice">Voz do Alex</label>
+          <div class="voice-copy">
+            <span class="sound-icon" aria-hidden="true"></span>
+            <div>
+              <label for="voice">Voz</label>
+              <p id="voice-note">Preparando a voz neural masculina gratuita.</p>
+            </div>
+          </div>
           <div class="voice-row">
             <select id="voice" aria-describedby="voice-note">
-              <option>Procurando vozes em portugues...</option>
+              <option>Procurando vozes em português...</option>
             </select>
-            <button id="preview-voice" class="tertiary" type="button">Testar</button>
+            <button id="preview-voice" class="tertiary" type="button">Ouvir voz</button>
           </div>
-          <p id="voice-note">Preparando a voz neural masculina gratuita.</p>
         </div>
-
-        <p class="privacy">A conversa continua ate voce pressionar “Encerrar conversa”.</p>
-      </section>
-
-      <section class="conversation" aria-labelledby="conversation-title">
-        <div class="conversation-header">
-          <h2 id="conversation-title">Conversa</h2>
-          <span id="connection-badge" class="badge">desconectado</span>
-        </div>
-        <div id="messages" class="messages" aria-live="polite">
-          <p class="placeholder">As transcricoes aparecerao aqui quando estiverem disponiveis.</p>
-        </div>
-      </section>
+        <p class="privacy">Microfone do computador · conversa contínua</p>
+      </footer>
     </main>
 
     <script type="module" src="/app.js"></script>

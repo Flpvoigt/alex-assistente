@@ -22,4 +22,8 @@ fi
 echo "Preparando o ambiente local do Kokoro..."
 uv sync --project voice --python 3.12
 
-echo "Voz pronta. O modelo sera baixado e aquecido na primeira execucao de npm start."
+echo "Validando as bibliotecas de audio..."
+uv run --project voice --python 3.12 --no-sync python -c \
+  'import kokoro, numpy, soundfile, torch; print(f"Kokoro pronto (PyTorch {torch.__version__}).")'
+
+echo "Dependencias prontas. O modelo sera baixado e aquecido na primeira execucao de npm start."

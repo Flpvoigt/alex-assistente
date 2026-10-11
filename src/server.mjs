@@ -129,6 +129,7 @@ async function respond(request, response) {
     }
 
     const config = createGroqConfig();
+    const enabledTools = config.webSearchEnabled ? [{ type: "browser_search" }] : undefined;
     const groqResponse = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -146,6 +147,8 @@ async function respond(request, response) {
           ],
           temperature: 0.4,
           max_completion_tokens: 500,
+          tools: enabledTools,
+          citation_options: "enabled",
           stream: true
         }),
         signal: upstreamAbort.signal
@@ -301,6 +304,7 @@ const server = createServer(async (request, response) => {
         provider: "Groq",
         chatModel: config.chatModel,
         sttModel: config.sttModel,
+        webSearchEnabled: config.webSearchEnabled,
         apiKeyConfigured: Boolean(process.env.GROQ_API_KEY),
         ttsProvider: "Kokoro",
         ttsVoice: voiceConfig.voice

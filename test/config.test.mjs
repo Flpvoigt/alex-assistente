@@ -8,6 +8,7 @@ test("usa modelos Groq de producao por padrao", () => {
 
   assert.equal(config.chatModel, "openai/gpt-oss-120b");
   assert.equal(config.sttModel, "whisper-large-v3-turbo");
+  assert.equal(config.webSearchEnabled, true);
 });
 
 test("aceita modelos configurados pelo ambiente", () => {
@@ -18,6 +19,10 @@ test("aceita modelos configurados pelo ambiente", () => {
 
   assert.equal(config.chatModel, "chat-de-teste");
   assert.equal(config.sttModel, "stt-de-teste");
+});
+
+test("permite desligar a pesquisa integrada", () => {
+  assert.equal(createGroqConfig({ ALEX_WEB_SEARCH: "false" }).webSearchEnabled, false);
 });
 
 test("limita e limpa o historico enviado ao modelo", () => {

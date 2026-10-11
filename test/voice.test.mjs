@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   isLikelyMaleVoice,
   listPortugueseMaleVoices,
+  normalizeSpeechText,
   rankVoice
 } from "../public/voice.mjs";
 
@@ -35,4 +36,10 @@ test("mantem a escolha salva acima da preferencia automatica", () => {
   const ranked = listPortugueseMaleVoices(voices, "Reed");
 
   assert.equal(ranked[0].name, "Reed");
+});
+
+test("remove marcacao, citacoes e enderecos que deixariam a fala robotica", () => {
+  const text = "Veja **a previsão** em [Fonte](https://exemplo.com) 〖2†L6-L10〗 ou https://exemplo.com/agora.";
+
+  assert.equal(normalizeSpeechText(text), "Veja a previsão em Fonte ou");
 });
