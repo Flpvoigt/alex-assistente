@@ -16,11 +16,22 @@
         <p id="status" class="status" aria-live="polite">Pronto para iniciar</p>
 
         <div class="controls">
-          <button id="connect" class="primary">Falar com Alex</button>
-          <button id="disconnect" class="secondary" disabled>Parar</button>
+          <button id="connect" class="primary">Iniciar conversa</button>
+          <button id="disconnect" class="secondary" disabled>Encerrar conversa</button>
         </div>
 
-        <p class="privacy">O microfone para automaticamente quando voce termina de falar.</p>
+        <div class="voice-control">
+          <label for="voice">Voz masculina do Alex</label>
+          <div class="voice-row">
+            <select id="voice" aria-describedby="voice-note">
+              <option>Procurando vozes em portugues...</option>
+            </select>
+            <button id="preview-voice" class="tertiary" type="button">Testar</button>
+          </div>
+          <p id="voice-note">Prioridade para uma voz brasileira suave instalada no aparelho.</p>
+        </div>
+
+        <p class="privacy">A conversa continua ate voce pressionar “Encerrar conversa”.</p>
       </section>
 
       <section class="conversation" aria-labelledby="conversation-title">

@@ -111,6 +111,9 @@ async function transcribe(request, response) {
 async function respond(request, response) {
   if (!requireGroqKey(response)) return;
 
+  const upstreamAbort = new AbortController();
+  response.on("close", () => upstreamAbort.abort());
+
   try {
     const rawBody = await readRequestBody(request, 256 * 1024);
     const body = JSON.parse(rawBody.toString("utf8"));
@@ -121,48 +124,59 @@ async function respond(request, response) {
     }
 
     const config = createGroqConfig();
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: config.chatModel,
-        messages: [
-          { role: "system", content: ALEX_INSTRUCTIONS },
-          ...sanitizeHistory(body.history),
-          { role: "user", content: message }
-        ],
-        temperature: 0.4,
-        max_completion_tokens: 500
-      })
-    });
-    const data = await readGroqResponse(groqResponse);
+    const groqResponse = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: config.chatModel,
+          messages: [
+            { role: "system", content: ALEX_INSTRUCTIONS },
+            ...sanitizeHistory(body.history),
+            { role: "user", content: message }
+          ],
+          temperature: 0.4,
+          max_completion_tokens: 500,
+          stream: true
+        }),
+        signal: upstreamAbort.signal
+      }
+    );
 
     if (!groqResponse.ok) {
+      const data = await readGroqResponse(groqResponse);
       sendJson(response, groqResponse.status, {
         error: data.error?.message || data.error || "Falha ao gerar resposta."
       });
       return;
     }
 
-    const text = data.choices?.[0]?.message?.content?.trim();
-    if (!text) {
-      sendJson(response, 502, { error: "A Groq retornou uma resposta vazia." });
-      return;
-    }
-
-    sendJson(response, 200, {
-      text,
-      usage: data.usage || null
+    response.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive"
     });
+
+    for await (const chunk of groqResponse.body) {
+      if (response.destroyed) break;
+      response.write(chunk);
+    }
+    response.end();
   } catch (error) {
+    if (error?.name === "AbortError") return;
     const invalidJson = error instanceof SyntaxError;
     console.error("Falha ao responder com a Groq:", error);
-    sendJson(response, invalidJson ? 400 : 502, {
-      error: invalidJson ? "JSON invalido." : "Falha ao gerar resposta."
-    });
+    if (!response.headersSent) {
+      sendJson(response, invalidJson ? 400 : 502, {
+        error: invalidJson ? "JSON invalido." : "Falha ao gerar resposta."
+      });
+    } else {
+      response.end();
+    }
   }
 }
 
