@@ -3,10 +3,11 @@
 ## Fluxo de voz
 
 1. O navegador pede permissao para usar o microfone.
-2. O navegador cria uma conexao WebRTC.
-3. O backend envia a oferta SDP para a OpenAI Realtime API.
+2. O backend troca a chave permanente da xAI por um token temporario.
+3. O navegador conecta diretamente ao Grok Voice por WebSocket usando esse token.
 4. A chave permanente permanece somente no backend.
-5. O audio do usuario e a resposta do Alex trafegam pelos canais WebRTC.
+5. O navegador converte o microfone para PCM 24 kHz e reproduz a resposta em fluxo.
+6. A sessao e encerrada automaticamente apos cinco minutos para limitar custos.
 
 ## Componentes planejados
 
@@ -19,5 +20,5 @@
 
 ## Limite do primeiro marco
 
-Esta versao oferece a base web de conversa por voz. Wake word, pesquisas, luzes e TV serao adicionados em branches separadas depois que os modelos dos equipamentos forem confirmados.
+Esta versao oferece a base web de conversa por voz com Grok. Wake word, pesquisas, luzes e TV serao adicionados em branches separadas depois que os modelos dos equipamentos forem confirmados. O wake word devera ser local para que uma sessao paga nao fique aberta enquanto o Alex aguarda o chamado.
 

@@ -1,25 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createSessionConfig } from "../src/config.mjs";
+import { createSessionConfig, getVoiceModel } from "../src/config.mjs";
 
-test("usa configuracao padrao segura para voz", () => {
+test("usa configuracao padrao segura para a voz do Grok", () => {
   const config = createSessionConfig({});
 
-  assert.equal(config.type, "realtime");
-  assert.equal(config.model, "gpt-realtime-2.1");
-  assert.equal(config.audio.output.voice, "marin");
+  assert.equal(getVoiceModel({}), "grok-voice-think-fast-2.0");
+  assert.equal(config.voice, "eve");
+  assert.equal(config.turn_detection.type, "server_vad");
+  assert.equal(config.audio.input.format.rate, 24000);
+  assert.equal(config.audio.output.format.rate, 24000);
   assert.match(config.instructions, /Alex/);
   assert.match(config.instructions, /portugues do Brasil/);
 });
 
 test("aceita modelo e voz configurados pelo ambiente", () => {
   const config = createSessionConfig({
-    OPENAI_REALTIME_MODEL: "modelo-de-teste",
-    OPENAI_REALTIME_VOICE: "voz-de-teste"
+    XAI_VOICE: "voz-de-teste"
   });
 
-  assert.equal(config.model, "modelo-de-teste");
-  assert.equal(config.audio.output.voice, "voz-de-teste");
+  assert.equal(config.voice, "voz-de-teste");
+  assert.equal(getVoiceModel({ XAI_VOICE_MODEL: "modelo-de-teste" }), "modelo-de-teste");
 });
 

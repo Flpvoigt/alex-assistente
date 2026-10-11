@@ -8,7 +8,9 @@ O primeiro marco inclui:
 
 - interface web responsiva;
 - captura de microfone com cancelamento de eco e reducao de ruido;
-- conversa de voz pela OpenAI Realtime API usando WebRTC;
+- conversa de voz pelo Grok Voice usando WebSocket;
+- audio PCM em fluxo, VAD e interrupcao da resposta quando o usuario fala;
+- encerramento automatico da sessao apos cinco minutos para controlar custos;
 - chave da API protegida no backend;
 - configuracao pronta para o VS Code;
 - testes basicos e regras de contribuicao;
@@ -17,7 +19,7 @@ O primeiro marco inclui:
 ## Requisitos
 
 - Node.js 20 ou superior;
-- uma chave da API da OpenAI com acesso ao modelo Realtime;
+- uma chave da API da xAI com acesso ao Grok Voice;
 - navegador moderno com acesso ao microfone.
 
 ## Executar
@@ -26,7 +28,7 @@ O primeiro marco inclui:
 cp .env.example .env
 ```
 
-Preencha `OPENAI_API_KEY` no arquivo `.env` e execute:
+Preencha `XAI_API_KEY` no arquivo `.env` e execute:
 
 ```bash
 npm start
@@ -48,7 +50,9 @@ npm run check
 
 ## Seguranca
 
-O arquivo `.env` e ignorado pelo Git. A chave permanente nunca deve ser colocada em `public/` nem enviada ao navegador. O microfone so e iniciado apos uma acao do usuario.
+O arquivo `.env` e ignorado pelo Git. A chave permanente nunca deve ser colocada em `public/` nem enviada ao navegador. O backend cria um token temporario da xAI para cada conexao. O microfone so e iniciado apos uma acao do usuario.
+
+O Grok Voice cobra por minuto de sessao quando o VAD do servidor esta ativo. Por isso a sessao nao deve permanecer aberta enquanto o assistente aguarda a palavra de ativacao.
 
 ## Proximos marcos
 

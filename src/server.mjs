@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createSessionConfig } from "./config.mjs";
+import { createSessionConfig, getVoiceModel } from "./config.mjs";
 import { loadEnvFile } from "./env.mjs";
 
 loadEnvFile();
@@ -26,60 +26,38 @@ function sendJson(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
-async function readRequestBody(request, limit = 1_000_000) {
-  const chunks = [];
-  let size = 0;
-
-  for await (const chunk of request) {
-    size += chunk.length;
-    if (size > limit) throw new Error("PAYLOAD_TOO_LARGE");
-    chunks.push(chunk);
-  }
-
-  return Buffer.concat(chunks).toString("utf8");
-}
-
-async function createRealtimeSession(request, response) {
-  if (!process.env.OPENAI_API_KEY) {
+async function createRealtimeSession(response) {
+  if (!process.env.XAI_API_KEY) {
     sendJson(response, 503, {
-      error: "OPENAI_API_KEY nao configurada. Copie .env.example para .env."
+      error: "XAI_API_KEY nao configurada. Copie .env.example para .env."
     });
     return;
   }
 
   try {
-    const sdp = await readRequestBody(request);
-    if (!sdp.trim()) {
-      sendJson(response, 400, { error: "Oferta SDP vazia." });
+    const xAiResponse = await fetch("https://api.x.ai/v1/realtime/client_secrets", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.XAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ expires_after: { seconds: 300 } })
+    });
+
+    const data = await xAiResponse.json();
+    if (!xAiResponse.ok) {
+      sendJson(response, xAiResponse.status, data);
       return;
     }
 
-    const form = new FormData();
-    form.set("sdp", sdp);
-    form.set("session", JSON.stringify(createSessionConfig()));
-
-    const openAiResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "OpenAI-Safety-Identifier": "alex-local-user"
-      },
-      body: form
+    sendJson(response, 200, {
+      ...data,
+      model: getVoiceModel(),
+      session: createSessionConfig()
     });
-
-    const body = await openAiResponse.text();
-    response.writeHead(openAiResponse.status, {
-      "Content-Type": openAiResponse.ok
-        ? "application/sdp"
-        : "application/json; charset=utf-8"
-    });
-    response.end(body);
   } catch (error) {
-    const tooLarge = error instanceof Error && error.message === "PAYLOAD_TOO_LARGE";
-    console.error("Falha ao criar sessao Realtime:", error);
-    sendJson(response, tooLarge ? 413 : 502, {
-      error: tooLarge ? "Oferta SDP muito grande." : "Falha ao criar sessao de voz."
-    });
+    console.error("Falha ao criar token temporario da xAI:", error);
+    sendJson(response, 502, { error: "Falha ao criar sessao de voz da xAI." });
   }
 }
 
@@ -120,17 +98,17 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === "GET" && url.pathname === "/api/status") {
-      const config = createSessionConfig();
       sendJson(response, 200, {
         assistant: "Alex",
-        model: config.model,
-        apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY)
+        provider: "xAI",
+        model: getVoiceModel(),
+        apiKeyConfigured: Boolean(process.env.XAI_API_KEY)
       });
       return;
     }
 
     if (request.method === "POST" && url.pathname === "/session") {
-      await createRealtimeSession(request, response);
+      await createRealtimeSession(response);
       return;
     }
 

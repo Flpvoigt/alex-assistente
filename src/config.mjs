@@ -8,14 +8,33 @@ Para acoes sensiveis, compras, fechaduras ou exclusao de dados, solicite confirm
 
 export function createSessionConfig(env = process.env) {
   return {
-    type: "realtime",
-    model: env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1",
     instructions: ALEX_INSTRUCTIONS,
+    voice: env.XAI_VOICE || "eve",
+    turn_detection: {
+      type: "server_vad"
+    },
     audio: {
+      input: {
+        format: {
+          type: "audio/pcm",
+          rate: 24000
+        },
+        transcription: {
+          language_hint: "pt-BR",
+          keyterms: ["Alex"]
+        }
+      },
       output: {
-        voice: env.OPENAI_REALTIME_VOICE || "marin"
+        format: {
+          type: "audio/pcm",
+          rate: 24000
+        }
       }
     }
   };
+}
+
+export function getVoiceModel(env = process.env) {
+  return env.XAI_VOICE_MODEL || "grok-voice-think-fast-2.0";
 }
 
