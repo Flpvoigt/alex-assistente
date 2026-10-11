@@ -217,6 +217,13 @@ h1 { margin: 8px 0 6px; font-size: clamp(3.7rem, 7vw, 6.5rem); font-weight: 520;
 
 .conversation-header { display: flex; align-items: flex-start; justify-content: space-between; }
 .conversation-header h2 { margin: 5px 0 0; font-size: 1.25rem; font-weight: 580; letter-spacing: -.025em; }
+.conversation-actions { display: flex; align-items: center; gap: 12px; }
+.history-clear {
+  padding: 5px 9px; border: 1px solid rgba(255,255,255,.08); border-radius: 999px;
+  color: #8b9690; background: rgba(255,255,255,.025); cursor: pointer; font: inherit; font-size: .65rem;
+}
+.history-clear:hover:not(:disabled) { color: #bfc8c3; border-color: rgba(255,255,255,.16); }
+.history-clear:disabled { opacity: .32; cursor: default; }
 .privacy-mark { color: #69736e; font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; }
 .messages { flex: 1; margin-top: 26px; padding-right: 5px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #29332f transparent; }
 .placeholder { height: 100%; display: grid; place-content: center; justify-items: center; color: #69736e; text-align: center; }

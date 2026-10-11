@@ -12,6 +12,9 @@ O primeiro marco inclui:
 - respostas em streaming pelo GPT-OSS 120B executado na Groq;
 - pesquisa atualizada na internet com a ferramenta nativa de busca da Groq;
 - conversa continua depois de um unico clique, retomando a escuta a cada resposta;
+- contexto ampliado e historico privado restaurado no mesmo navegador;
+- data, hora e fuso locais disponiveis para respostas contextuais;
+- raciocinio configurado para baixa latencia em conversa, com niveis opcionais;
 - interrupcao manual da resposta para o usuario voltar a falar imediatamente;
 - voz neural local gratuita Kokoro `pm_alex`, masculina e brasileira;
 - selecao persistente com uma voz masculina do sistema como reserva;
@@ -46,6 +49,10 @@ npm start
 ```
 
 Abra `http://127.0.0.1:3000`, teste a voz escolhida e pressione **Iniciar conversa**.
+
+O Alex guarda localmente as ultimas 30 mensagens para continuar o assunto mesmo depois de recarregar a pagina. Use **Limpar** no painel de conversa para apagar esse historico do navegador.
+
+O nivel de raciocinio padrao e `low`, priorizando respostas rapidas por voz. Para tarefas mais complexas, altere `GROQ_REASONING_EFFORT` no `.env` para `medium` ou `high`.
 
 Para desenvolvimento com reinicio automatico:
 

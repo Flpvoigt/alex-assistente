@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGroqConfig, createVoiceConfig, sanitizeHistory } from "../src/config.mjs";
+import {
+  createAlexInstructions,
+  createGroqConfig,
+  createVoiceConfig,
+  MAX_HISTORY_CHARACTERS,
+  MAX_HISTORY_MESSAGES,
+  sanitizeHistory
+} from "../src/config.mjs";
 
 test("usa modelos Groq de producao por padrao", () => {
   const config = createGroqConfig({});
@@ -9,6 +16,7 @@ test("usa modelos Groq de producao por padrao", () => {
   assert.equal(config.chatModel, "openai/gpt-oss-120b");
   assert.equal(config.sttModel, "whisper-large-v3-turbo");
   assert.equal(config.webSearchEnabled, true);
+  assert.equal(config.reasoningEffort, "low");
 });
 
 test("aceita modelos configurados pelo ambiente", () => {
@@ -25,8 +33,13 @@ test("permite desligar a pesquisa integrada", () => {
   assert.equal(createGroqConfig({ ALEX_WEB_SEARCH: "false" }).webSearchEnabled, false);
 });
 
+test("aceita somente niveis de raciocinio suportados pelo GPT OSS", () => {
+  assert.equal(createGroqConfig({ GROQ_REASONING_EFFORT: "high" }).reasoningEffort, "high");
+  assert.equal(createGroqConfig({ GROQ_REASONING_EFFORT: "invalido" }).reasoningEffort, "low");
+});
+
 test("limita e limpa o historico enviado ao modelo", () => {
-  const history = Array.from({ length: 14 }, (_, index) => ({
+  const history = Array.from({ length: MAX_HISTORY_MESSAGES + 2 }, (_, index) => ({
     role: index % 2 ? "assistant" : "user",
     content: `mensagem-${index}`
   }));
@@ -34,9 +47,33 @@ test("limita e limpa o historico enviado ao modelo", () => {
 
   const sanitized = sanitizeHistory(history);
 
-  assert.equal(sanitized.length, 12);
+  assert.equal(sanitized.length, MAX_HISTORY_MESSAGES);
   assert.equal(sanitized[0].content, "mensagem-2");
-  assert.equal(sanitized.at(-1).content, "mensagem-13");
+  assert.equal(sanitized.at(-1).content, `mensagem-${MAX_HISTORY_MESSAGES + 1}`);
+});
+
+test("respeita o orcamento total do historico", () => {
+  const history = Array.from({ length: 20 }, (_, index) => ({
+    role: index % 2 ? "assistant" : "user",
+    content: "x".repeat(3000)
+  }));
+
+  const sanitized = sanitizeHistory(history);
+  const total = sanitized.reduce((sum, item) => sum + item.content.length, 0);
+
+  assert.equal(total, MAX_HISTORY_CHARACTERS);
+  assert.equal(sanitized.length, 10);
+});
+
+test("informa data, hora e fuso atuais ao Alex", () => {
+  const instructions = createAlexInstructions({
+    now: new Date("2026-10-11T15:30:00.000Z"),
+    timeZone: "America/Sao_Paulo"
+  });
+
+  assert.match(instructions, /11 de outubro de 2026/);
+  assert.match(instructions, /12:30/);
+  assert.match(instructions, /America\/Sao_Paulo/);
 });
 
 test("configura a voz neural masculina local com velocidade segura", () => {

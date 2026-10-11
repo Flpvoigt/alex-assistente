@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  ALEX_INSTRUCTIONS,
+  createAlexInstructions,
   createGroqConfig,
   createVoiceConfig,
   sanitizeHistory
@@ -141,13 +141,18 @@ async function respond(request, response) {
         body: JSON.stringify({
           model: config.chatModel,
           messages: [
-            { role: "system", content: ALEX_INSTRUCTIONS },
+            {
+              role: "system",
+              content: createAlexInstructions({ timeZone: process.env.TZ || "America/Sao_Paulo" })
+            },
             ...sanitizeHistory(body.history),
             { role: "user", content: message }
           ],
           temperature: 0.4,
-          max_completion_tokens: 500,
+          max_completion_tokens: 700,
+          reasoning_effort: config.reasoningEffort,
           tools: enabledTools,
+          tool_choice: enabledTools ? "auto" : undefined,
           citation_options: "enabled",
           stream: true
         }),
@@ -166,7 +171,8 @@ async function respond(request, response) {
     response.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive"
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no"
     });
 
     for await (const chunk of groqResponse.body) {
@@ -304,6 +310,7 @@ const server = createServer(async (request, response) => {
         provider: "Groq",
         chatModel: config.chatModel,
         sttModel: config.sttModel,
+        reasoningEffort: config.reasoningEffort,
         webSearchEnabled: config.webSearchEnabled,
         apiKeyConfigured: Boolean(process.env.GROQ_API_KEY),
         ttsProvider: "Kokoro",

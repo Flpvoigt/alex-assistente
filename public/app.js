@@ -8,6 +8,7 @@ const voiceNote = document.querySelector("#voice-note");
 const statusElement = document.querySelector("#status");
 const badgeElement = document.querySelector("#connection-badge");
 const messagesElement = document.querySelector("#messages");
+const clearHistoryButton = document.querySelector("#clear-history");
 const orbElement = document.querySelector(".orb");
 const clockElement = document.querySelector("#clock");
 
@@ -16,6 +17,8 @@ const SILENCE_DURATION_MS = 850;
 const NO_SPEECH_TIMEOUT_MS = 12000;
 const MAX_RECORDING_MS = 30000;
 const KOKORO_VOICE_VALUE = "kokoro:pm_alex";
+const HISTORY_STORAGE_KEY = "alex.conversation.v1";
+const MAX_HISTORY_MESSAGES = 30;
 
 let conversationActive = false;
 let phase = "idle";
@@ -29,7 +32,7 @@ let resumeTimer;
 let requestAbort;
 let audioChunks = [];
 let shouldProcessRecording = true;
-let conversationHistory = [];
+let conversationHistory = loadConversationHistory();
 let responseStreaming = false;
 let speechBuffer = "";
 let pendingSpeechParts = 0;
@@ -51,6 +54,7 @@ function setPhase(nextPhase, message) {
   badgeElement.innerHTML = `<i></i> ${conversationActive ? "conectado" : "offline"}`;
   badgeElement.dataset.state = nextPhase === "error" ? "error" : conversationActive ? "connected" : "idle";
   orbElement.dataset.state = nextPhase;
+  clearHistoryButton.disabled = conversationActive || conversationHistory.length === 0;
 
   if (!conversationActive) {
     connectButton.textContent = "Iniciar conversa";
@@ -67,6 +71,72 @@ function setPhase(nextPhase, message) {
     connectButton.textContent = "Interromper e falar";
     connectButton.disabled = false;
   }
+}
+
+function loadConversationHistory() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || "[]");
+    if (!Array.isArray(stored)) return [];
+    return stored
+      .filter(
+        (item) =>
+          item &&
+          (item.role === "user" || item.role === "assistant") &&
+          typeof item.content === "string" &&
+          item.content.trim()
+      )
+      .slice(-MAX_HISTORY_MESSAGES)
+      .map((item) => ({ role: item.role, content: item.content.trim().slice(0, 6000) }));
+  } catch {
+    return [];
+  }
+}
+
+function persistConversationHistory() {
+  try {
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(conversationHistory));
+  } catch {
+    // A conversa continua na memoria enquanto a pagina estiver aberta.
+  }
+  clearHistoryButton.disabled = conversationActive || conversationHistory.length === 0;
+}
+
+function rememberMessage(role, content) {
+  const normalized = String(content || "").trim();
+  if (!normalized) return;
+  conversationHistory.push({ role, content: normalized.slice(0, 6000) });
+  conversationHistory = conversationHistory.slice(-MAX_HISTORY_MESSAGES);
+  persistConversationHistory();
+}
+
+function emptyConversation() {
+  messagesElement.innerHTML = `
+    <div class="placeholder">
+      <span class="placeholder-line"></span>
+      <p>Toque em iniciar e fale naturalmente.</p>
+    </div>`;
+}
+
+function restoreConversation() {
+  if (!conversationHistory.length) {
+    clearHistoryButton.disabled = true;
+    return;
+  }
+  for (const item of conversationHistory) beginMessage(item.role, item.content);
+  clearHistoryButton.disabled = false;
+}
+
+function clearConversation() {
+  if (conversationActive) return;
+  conversationHistory = [];
+  try {
+    localStorage.removeItem(HISTORY_STORAGE_KEY);
+  } catch {
+    // O historico em memoria ainda e removido.
+  }
+  emptyConversation();
+  clearHistoryButton.disabled = true;
+  setPhase("idle", "Conversa limpa. Pronto para começar de novo.");
 }
 
 function beginMessage(role, text = "") {
@@ -547,7 +617,7 @@ async function processAudio(recording, thisTurn) {
 
     const previousHistory = [...conversationHistory];
     beginMessage("user", transcription.text);
-    conversationHistory.push({ role: "user", content: transcription.text });
+    rememberMessage("user", transcription.text);
     setPhase("thinking", "Alex esta pensando...");
 
     let assistantParagraph;
@@ -575,8 +645,7 @@ async function processAudio(recording, thisTurn) {
     feedSpeech("", true);
 
     if (!partialAssistantText.trim()) throw new Error("A Groq retornou uma resposta vazia.");
-    conversationHistory.push({ role: "assistant", content: partialAssistantText.trim() });
-    conversationHistory = conversationHistory.slice(-12);
+    rememberMessage("assistant", partialAssistantText);
     maybeResumeListening();
   } catch (error) {
     if (error.name === "AbortError") return;
@@ -597,8 +666,7 @@ function cancelCurrentResponse() {
   stopSpeechPlayback();
 
   if (partialAssistantText.trim()) {
-    conversationHistory.push({ role: "assistant", content: partialAssistantText.trim() });
-    conversationHistory = conversationHistory.slice(-12);
+    rememberMessage("assistant", partialAssistantText);
   }
   partialAssistantText = "";
 }
@@ -645,6 +713,7 @@ connectButton.addEventListener("click", () => {
   else interruptAndListen();
 });
 disconnectButton.addEventListener("click", endConversation);
+clearHistoryButton.addEventListener("click", clearConversation);
 
 voiceSelect.addEventListener("change", () => {
   applyVoiceSelection();
@@ -652,6 +721,7 @@ voiceSelect.addEventListener("change", () => {
 
 previewVoiceButton.addEventListener("click", speakPreview);
 window.speechSynthesis?.addEventListener?.("voiceschanged", refreshVoices);
+restoreConversation();
 refreshVoices();
 refreshNeuralVoiceStatus();
 
